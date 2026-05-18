@@ -1,0 +1,853 @@
+openapi: 3.0.3
+info:
+  title: Fraudly — AI Agent Service API
+  description: |
+    Service IA multi-agents de Fraudly (FastAPI/Python).
+    Expose les agents intelligents : Tutor Agent (aide contextuelle),
+    Assessment Engine (génération et correction d'évaluations),
+    Learning Path Engine (parcours personnalisé) et Knowledge Service
+    (recherche sémantique via Vector DB ChromaDB).
+  version: 1.0.0
+  contact:
+    name: P1 — Architecte Technique
+    email: p1@fraudly.app
+
+servers:
+  - url: http://localhost:8083
+    description: Développement local
+  - url: https://api-staging.fraudly.app/ai
+    description: Staging AWS
+  - url: https://api.fraudly.app/ai
+    description: Production AWS
+
+tags:
+  - name: Tutor Agent
+    description: Agent tuteur IA pour l'aide contextuelle en temps réel
+  - name: Assessment Engine
+    description: Génération automatique et correction d'évaluations
+  - name: Learning Path Engine
+    description: Génération de parcours d'apprentissage personnalisés
+  - name: Knowledge Service
+    description: Recherche sémantique dans la base de connaissances (ChromaDB)
+
+paths:
+
+  # ── TUTOR AGENT ─────────────────────────────────────────────────────────────
+
+  /api/v1/tutor/chat:
+    post:
+      tags: [Tutor Agent]
+      summary: Envoyer un message au Tutor Agent (streaming SSE)
+      operationId: tutorChat
+      description: |
+        Envoie un message à l'agent tuteur IA. La réponse est streamée
+        en Server-Sent Events (SSE) pour un affichage token par token côté P5.
+        L'agent a accès au contexte du cours/chapitre fourni.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TutorChatRequest'
+            example:
+              message: "Je ne comprends pas la différence entre merge sort et quick sort."
+              courseId: "550e8400-e29b-41d4-a716-446655440000"
+              chapterId: "550e8400-e29b-41d4-a716-446655440001"
+              sessionId: "session-abc123"
+              stream: true
+      responses:
+        '200':
+          description: Réponse de l'agent (stream SSE ou JSON selon `stream`)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Flux SSE. Chaque événement contient:
+                  data: {"delta": "token", "done": false}
+                  Dernier événement: data: {"done": true, "messageId": "uuid"}
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TutorChatResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/v1/tutor/sessions/{sessionId}/history:
+    get:
+      tags: [Tutor Agent]
+      summary: Historique d'une session de tutorat
+      operationId: getTutorSessionHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Historique de la session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/tutor/sessions/{sessionId}:
+    delete:
+      tags: [Tutor Agent]
+      summary: Suppression d'une session (efface l'historique)
+      operationId: deleteTutorSession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Session supprimée
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── ASSESSMENT ENGINE ────────────────────────────────────────────────────────
+
+  /api/v1/assessments/generate:
+    post:
+      tags: [Assessment Engine]
+      summary: Génération automatique d'une évaluation par l'IA
+      operationId: generateAssessment
+      description: |
+        Génère automatiquement un quiz ou examen basé sur le contenu
+        d'un cours/chapitre. L'IA analyse les ressources et produit
+        des questions adaptées au niveau et au type choisis.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAssessmentRequest'
+            example:
+              courseId: "550e8400-e29b-41d4-a716-446655440000"
+              chapterId: "550e8400-e29b-41d4-a716-446655440001"
+              type: "QUIZ"
+              questionCount: 10
+              difficulty: "MEDIUM"
+              questionTypes: ["MCQ", "TRUE_FALSE", "SHORT_ANSWER"]
+      responses:
+        '202':
+          description: Génération lancée (asynchrone)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentGenerationJob'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/assessments/jobs/{jobId}:
+    get:
+      tags: [Assessment Engine]
+      summary: Statut d'un job de génération d'évaluation
+      operationId: getAssessmentJob
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Statut du job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentGenerationJob'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/assessments/{assessmentId}:
+    get:
+      tags: [Assessment Engine]
+      summary: Récupération d'une évaluation générée
+      operationId: getAssessment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: assessmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Évaluation avec ses questions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assessment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/assessments/{assessmentId}/submit:
+    post:
+      tags: [Assessment Engine]
+      summary: Soumission des réponses et correction automatique
+      operationId: submitAssessment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: assessmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentSubmission'
+      responses:
+        '200':
+          description: Résultat de l'évaluation avec corrections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Évaluation déjà soumise
+
+  # ── LEARNING PATH ENGINE ─────────────────────────────────────────────────────
+
+  /api/v1/learning-paths/generate:
+    post:
+      tags: [Learning Path Engine]
+      summary: Génération d'un parcours d'apprentissage personnalisé
+      operationId: generateLearningPath
+      description: |
+        Analyse le profil de l'étudiant (historique, performances, objectifs)
+        et génère un parcours d'apprentissage adaptatif avec recommandations
+        de cours et ordre optimal.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateLearningPathRequest'
+            example:
+              studentId: "550e8400-e29b-41d4-a716-446655440002"
+              goals: ["Maîtriser Python", "Préparer certification Data Science"]
+              availableHoursPerWeek: 10
+              preferredDifficulty: "INTERMEDIATE"
+      responses:
+        '200':
+          description: Parcours d'apprentissage personnalisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPath'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/learning-paths/{studentId}/current:
+    get:
+      tags: [Learning Path Engine]
+      summary: Parcours actuel d'un étudiant
+      operationId: getCurrentLearningPath
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Parcours actuel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPath'
+        '404':
+          description: Aucun parcours actif pour cet étudiant
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/learning-paths/{studentId}/recommendations:
+    get:
+      tags: [Learning Path Engine]
+      summary: Recommandations de cours pour un étudiant
+      operationId: getCourseRecommendations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+            maximum: 20
+      responses:
+        '200':
+          description: Liste de cours recommandés
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CourseRecommendation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── KNOWLEDGE SERVICE ────────────────────────────────────────────────────────
+
+  /api/v1/knowledge/search:
+    post:
+      tags: [Knowledge Service]
+      summary: Recherche sémantique dans la base de connaissances
+      operationId: semanticSearch
+      description: |
+        Effectue une recherche sémantique dans ChromaDB à partir d'une
+        requête en langage naturel. Retourne les passages les plus pertinents
+        des ressources de cours (PDFs indexés via OCR).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeSearchRequest'
+            example:
+              query: "complexité temporelle des algorithmes de tri"
+              courseId: "550e8400-e29b-41d4-a716-446655440000"
+              topK: 5
+      responses:
+        '200':
+          description: Résultats de recherche sémantique
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeSearchResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/knowledge/index:
+    post:
+      tags: [Knowledge Service]
+      summary: Indexation d'une ressource dans ChromaDB (usage interne)
+      operationId: indexResource
+      description: |
+        Déclenche l'indexation vectorielle d'un document dans ChromaDB.
+        Appelé automatiquement par le course-service après upload d'une
+        ressource avec OCR activé.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndexResourceRequest'
+      responses:
+        '202':
+          description: Indexation lancée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [PENDING, PROCESSING]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 0
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        default: 20
+
+  schemas:
+
+    TutorChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        courseId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Contexte du cours pour des réponses plus précises
+        chapterId:
+          type: string
+          format: uuid
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+          description: ID de session pour maintenir le contexte conversationnel
+        stream:
+          type: boolean
+          default: true
+          description: Si true, retourne un stream SSE. Sinon JSON classique.
+
+    TutorChatResponse:
+      type: object
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+        response:
+          type: string
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeSource'
+        tokensUsed:
+          type: integer
+
+    SessionHistory:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        totalMessages:
+          type: integer
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    GenerateAssessmentRequest:
+      type: object
+      required: [courseId, type, questionCount, difficulty]
+      properties:
+        courseId:
+          type: string
+          format: uuid
+        chapterId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Si null, génère sur l'ensemble du cours
+        type:
+          type: string
+          enum: [QUIZ, EXAM, PRACTICE]
+        questionCount:
+          type: integer
+          minimum: 1
+          maximum: 50
+        difficulty:
+          type: string
+          enum: [EASY, MEDIUM, HARD, MIXED]
+        questionTypes:
+          type: array
+          items:
+            type: string
+            enum: [MCQ, TRUE_FALSE, SHORT_ANSWER, ESSAY]
+          default: [MCQ, TRUE_FALSE]
+        timeLimit:
+          type: integer
+          description: Durée limite en minutes (null = pas de limite)
+          nullable: true
+
+    AssessmentGenerationJob:
+      type: object
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+        assessmentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Disponible uniquement si status = COMPLETED
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        createdAt:
+          type: string
+          format: date-time
+
+    Assessment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        type:
+          type: string
+          enum: [QUIZ, EXAM, PRACTICE]
+        difficulty:
+          type: string
+        timeLimit:
+          type: integer
+          nullable: true
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        createdAt:
+          type: string
+          format: date-time
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [MCQ, TRUE_FALSE, SHORT_ANSWER, ESSAY]
+        text:
+          type: string
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              text:
+                type: string
+          nullable: true
+          description: Disponible uniquement pour MCQ et TRUE_FALSE
+        points:
+          type: integer
+          default: 1
+
+    AssessmentSubmission:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            required: [questionId, answer]
+            properties:
+              questionId:
+                type: string
+                format: uuid
+              answer:
+                type: string
+                description: Pour MCQ/TF = optionId, pour SHORT_ANSWER/ESSAY = texte libre
+
+    AssessmentResult:
+      type: object
+      properties:
+        assessmentId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          format: uuid
+        score:
+          type: number
+          format: float
+          description: Score en pourcentage (0-100)
+        totalPoints:
+          type: integer
+        earnedPoints:
+          type: integer
+        passed:
+          type: boolean
+        corrections:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionCorrection'
+        submittedAt:
+          type: string
+          format: date-time
+
+    QuestionCorrection:
+      type: object
+      properties:
+        questionId:
+          type: string
+          format: uuid
+        correct:
+          type: boolean
+        studentAnswer:
+          type: string
+        correctAnswer:
+          type: string
+        explanation:
+          type: string
+          description: Explication IA de la bonne réponse
+
+    GenerateLearningPathRequest:
+      type: object
+      required: [studentId]
+      properties:
+        studentId:
+          type: string
+          format: uuid
+        goals:
+          type: array
+          items:
+            type: string
+        availableHoursPerWeek:
+          type: integer
+          minimum: 1
+        preferredDifficulty:
+          type: string
+          enum: [BEGINNER, INTERMEDIATE, ADVANCED]
+
+    LearningPath:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        estimatedWeeks:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningPathStep'
+        generatedAt:
+          type: string
+          format: date-time
+
+    LearningPathStep:
+      type: object
+      properties:
+        order:
+          type: integer
+        courseId:
+          type: string
+          format: uuid
+        courseTitle:
+          type: string
+        reason:
+          type: string
+          description: Explication IA du pourquoi de cette étape
+        estimatedHours:
+          type: integer
+        completed:
+          type: boolean
+          default: false
+
+    CourseRecommendation:
+      type: object
+      properties:
+        courseId:
+          type: string
+          format: uuid
+        courseTitle:
+          type: string
+        relevanceScore:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        reason:
+          type: string
+
+    KnowledgeSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 3
+          maxLength: 1000
+        courseId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Limiter la recherche à un cours spécifique
+        topK:
+          type: integer
+          default: 5
+          minimum: 1
+          maximum: 20
+
+    KnowledgeSearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeSource'
+        searchTimeMs:
+          type: integer
+
+    KnowledgeSource:
+      type: object
+      properties:
+        resourceId:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        chapterId:
+          type: string
+          format: uuid
+        excerpt:
+          type: string
+          description: Passage extrait du document
+        similarityScore:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    IndexResourceRequest:
+      type: object
+      required: [resourceId, courseId, text]
+      properties:
+        resourceId:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        chapterId:
+          type: string
+          format: uuid
+          nullable: true
+        text:
+          type: string
+          description: Texte extrait par OCR à indexer
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Requête invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Token JWT manquant ou invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Trop de requêtes (limite LLM atteinte)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: "RATE_LIMIT_EXCEEDED"
+            message: "Limite d'appels LLM atteinte. Réessayez dans 60 secondes."

@@ -1,0 +1,80 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[margin=1.5cm, bottom=3cm]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage[many]{tcolorbox}
+\usepackage{tikz}
+\usepackage{helvet} 
+
+\definecolor{deptcolor}{HTML}{1F497D}
+\definecolor{memoirecolor}{HTML}{002060}
+\definecolor{bordercolor}{HTML}{0070C0}
+\definecolor{bottomboxcolor}{HTML}{004579}
+\definecolor{shadowcolor}{HTML}{D3D3D3} 
+
+\renewcommand{\familydefault}{\sfdefault}
+
+\newtcolorbox{doublebox}[1][]{
+    enhanced,
+    sharp corners,
+    colback=white,
+    colframe=bordercolor,
+    boxrule=0.8pt,
+    borderline={0.8pt}{2pt}{bordercolor}, 
+    shadow={-2.5mm}{-2.5mm}{0mm}{shadowcolor}, 
+    #1
+}
+
+\begin{document}
+\begin{titlepage}
+    \centering
+    
+    \includegraphics[height=2.5cm]{enset_mohammedia_fr.png} 
+    \vspace{0.6cm}
+    
+    {\fontsize{12}{14}\selectfont\bfseries\color{deptcolor} Département Mathématiques et Informatique} \\[1.5cm]
+    
+    {\fontsize{24}{30}\selectfont\bfseries\color{memoirecolor} Mémoire de Projet d’Innovation} \\[1.5cm]
+    
+    \begin{doublebox}[valign=center, height=3.5cm]
+        \centering
+        {\fontsize{26}{32}\selectfont\bfseries\color{black} Titre du PI}
+    \end{doublebox}
+    \vspace{1.8cm}
+    
+    {\fontsize{18}{22}\selectfont\bfseries\color{black} Soutenu le \dots / \dots / \dots.} \\[1.8cm]
+    
+    \begin{doublebox}[valign=center, top=0.0cm, bottom=0.5cm, left=0.1cm, right=0.1cm]
+        \begin{tabularx}{\textwidth}{@{} X X @{}}
+            {\fontsize{14}{18}\selectfont\bfseries\color{black} \underline{Réalisé par :}} & {\fontsize{14}{18}\selectfont\bfseries\color{black} \underline{Encadré par :}} \\[0.4cm]
+            {\fontsize{14}{18}\selectfont\color{black} - \hspace{0.1cm} Prénom1 NOM1 (Filière)} & {\fontsize{14}{18}\selectfont\color{black} \hphantom{\underline{Encadré par :}}- \hspace{0.1cm} Encadrant1} \\
+            {\fontsize{14}{18}\selectfont\color{black} - \hspace{0.1cm} Prénom2 NOM2 (Filière)} & {\fontsize{14}{18}\selectfont\color{black} \hphantom{\underline{Encadré par :}}- \hspace{0.1cm} Encadrant2} \\
+            {\fontsize{14}{18}\selectfont\color{black} - } & \\
+            {\fontsize{14}{18}\selectfont\color{black} - } & \\
+        \end{tabularx}
+    \end{doublebox}
+    \vspace{1.8cm}
+    
+    {\fontsize{16}{20}\selectfont\bfseries\color{black} Année Universitaire : 2025-2026}
+    
+    \vfill
+    
+    \begin{tikzpicture}[remember picture, overlay]
+        \node[fill=bottomboxcolor, minimum width=18.3cm, minimum height=1.6cm, anchor=south, yshift=0.8cm] at (current page.south) {
+            \begin{minipage}{18.3cm}
+                \centering
+                \color{white}
+                {\fontsize{11}{13}\selectfont\bfseries ENSET, Avenue Hassan II - B.P. 159 - Mohammedia - Maroc} \\[0.05cm]
+                {\fontsize{10}{12}\selectfont\bfseries \faPhone~ 05 23 32 22 20 / 05 23 32 35 30 – Fax : 05 23 32 25 46 - \fontsize{8}{10}\selectfont Site Web: www.enset-media.ac.ma} \\[0.05cm]
+                {\fontsize{8}{10}\selectfont\bfseries E-Mail : enset-media@enset-media.ac.ma}
+            \end{minipage}
+        };
+    \end{tikzpicture}
+
+\end{titlepage}
+\end{document}

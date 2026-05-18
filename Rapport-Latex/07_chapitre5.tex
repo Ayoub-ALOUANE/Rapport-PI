@@ -1,0 +1,19 @@
+\chapter{Intégration de l'Intelligence Artificielle}
+
+\section{Sélection du Modèle Fondateur}
+L'intégration de l'intelligence artificielle au sein de Fraudly a nécessité une étude comparative rigoureuse des grands modèles de langage open-source disponibles. Les modèles candidats, LLaMA 3 et Mistral 7B, ont été évalués selon des critères de qualité linguistique en français, de respect des instructions complexes, et de latence d'inférence. Le choix s'est arrêté sur LLaMA 3 8B, offrant un compromis idéal entre performance cognitive et réactivité.
+
+\section{Le Tutor Agent et la Méthodologie RAG}
+L'agent tuteur est conçu pour accompagner l'étudiant dans sa compréhension des concepts difficiles. Pour éviter que le modèle de langage n'invente des faits, l'architecture implémente le paradigme de Génération Augmentée par la Recherche (RAG). 
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[max width=\textwidth, max height=0.4\textheight, keepaspectratio]{../Tutor_AI.png}
+    \caption{Diagramme de séquence du Tutor Agent}
+    \label{fig:tutor_ai}
+\end{figure}
+
+Lorsqu'une question est posée, le système interroge d'abord la base vectorielle ChromaDB pour extraire les paragraphes du support de cours sémantiquement proches de la question. Ces paragraphes factuels sont ensuite injectés dans l'invite de commande envoyée à LLaMA 3, qui génère une réponse pédagogique strictement cantonnée à ce contexte vérifié.
+
+\section{L'Assessment Engine}
+L'agent d'évaluation intervient dans deux processus chronophages pour l'enseignant. Premièrement, il génère de manière autonome des propositions d'examens calibrées selon un niveau de difficulté cible. Deuxièmement, il assure la correction automatisée des questions à réponse ouverte en s'appuyant sur une grille d'évaluation fournie par le professeur.

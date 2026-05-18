@@ -1,0 +1,20 @@
+\chapter{Le Module de Proctoring Intelligent}
+
+\section{Fondements et Architecture}
+Le module de proctoring constitue le rempart technologique contre la fraude académique en ligne. Conçu pour opérer de manière furtive mais efficace, il analyse en temps réel une pluralité de signaux émanant du poste de travail de l'étudiant. La figure \ref{fig:arch_proctoring} illustre l'architecture globale de ce sous-système complexe.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[max width=\textwidth, max height=0.4\textheight, keepaspectratio]{../Proctoring.png}
+    \caption{Diagramme de séquence du Module de Proctoring}
+    \label{fig:arch_proctoring}
+\end{figure}
+
+\section{Analyse Visuelle par Vision par Ordinateur}
+La première dimension de la surveillance est visuelle. Le système s'appuie sur le modèle de détection d'objets YOLO (You Only Look Once), mondialement reconnu pour sa vélocité exceptionnelle en temps réel. Ce modèle a été calibré pour identifier avec précision la présence d'objets prohibés. Conjointement, des algorithmes basés sur OpenCV se chargent de vérifier la présence constante d'un visage unique devant l'écran, levant une alerte critique en cas de substitution d'identité.
+
+\section{Pistage Comportemental Actif}
+La seconde dimension réside dans l'analyse de l'empreinte comportementale numérique de l'étudiant. Le client embarque des écouteurs d'événements invisibles qui tracent les actions suspectes : pertes de focalisation de l'onglet du navigateur, tentatives de partage d'écran non autorisées, et opérations massives de collage dans les champs de réponses textuelles.
+
+\section{L'Integrity Agent}
+L'ensemble de ces signaux bruts est agrégé par un agent d'intégrité dédié. Cet algorithme évalue la corrélation temporelle et la sévérité des infractions. À l'issue de l'épreuve, un rapport d'intégrité exhaustif, enrichi de captures d'écran probantes, est généré à l'attention de l'enseignant qui conserve l'ultime décision de sanction.

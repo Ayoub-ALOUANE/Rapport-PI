@@ -1,0 +1,838 @@
+openapi: 3.0.3
+info:
+  title: Fraudly — Course Service API
+  description: |
+    Service de gestion du contenu pédagogique Fraudly (Learning Hub).
+    Gère les cours, chapitres, ressources (vidéos, PDF, OCR),
+    les inscriptions étudiants et la progression dans les cours.
+  version: 1.0.0
+  contact:
+    name: P1 — Architecte Technique
+    email: p1@fraudly.app
+
+servers:
+  - url: http://localhost:8082
+    description: Développement local
+  - url: https://api-staging.fraudly.app/courses
+    description: Staging AWS
+  - url: https://api.fraudly.app/courses
+    description: Production AWS
+
+tags:
+  - name: Courses
+    description: Gestion des cours
+  - name: Chapters
+    description: Gestion des chapitres d'un cours
+  - name: Resources
+    description: Upload et gestion des ressources pédagogiques
+  - name: Enrollments
+    description: Inscriptions des étudiants aux cours
+  - name: Progress
+    description: Suivi de la progression des étudiants
+
+paths:
+
+  # ── COURSES ─────────────────────────────────────────────────────────────────
+
+  /api/v1/courses:
+    get:
+      tags: [Courses]
+      summary: Liste des cours disponibles
+      operationId: listCourses
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Recherche par titre ou description
+        - name: teacherId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filtrer par enseignant
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/CourseStatus'
+      responses:
+        '200':
+          description: Liste paginée des cours
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedCourses'
+
+    post:
+      tags: [Courses]
+      summary: Création d'un nouveau cours (Enseignant/Admin)
+      operationId: createCourse
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCourseRequest'
+            example:
+              title: "Algorithmes et Structures de Données"
+              description: "Cours fondamental sur les algorithmes de tri, graphes et complexité."
+              level: "INTERMEDIATE"
+              durationHours: 40
+              tags: ["algorithmique", "python", "complexité"]
+      responses:
+        '201':
+          description: Cours créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/courses/{courseId}:
+    get:
+      tags: [Courses]
+      summary: Détail d'un cours
+      operationId: getCourse
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Détail du cours
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Courses]
+      summary: Mise à jour d'un cours (Enseignant propriétaire/Admin)
+      operationId: updateCourse
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCourseRequest'
+      responses:
+        '200':
+          description: Cours mis à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Courses]
+      summary: Suppression d'un cours (Admin uniquement)
+      operationId: deleteCourse
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '204':
+          description: Cours supprimé
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/courses/{courseId}/publish:
+    patch:
+      tags: [Courses]
+      summary: Publication d'un cours (le rend visible aux étudiants)
+      operationId: publishCourse
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Cours publié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          description: Cours incomplet (pas de chapitres ou ressources)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── CHAPTERS ────────────────────────────────────────────────────────────────
+
+  /api/v1/courses/{courseId}/chapters:
+    get:
+      tags: [Chapters]
+      summary: Liste des chapitres d'un cours
+      operationId: listChapters
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Liste des chapitres
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chapter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [Chapters]
+      summary: Ajout d'un chapitre au cours
+      operationId: createChapter
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChapterRequest'
+            example:
+              title: "Introduction aux algorithmes de tri"
+              description: "Bubble sort, merge sort, quick sort et analyse de complexité."
+              order: 1
+      responses:
+        '201':
+          description: Chapitre créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/courses/{courseId}/chapters/{chapterId}:
+    get:
+      tags: [Chapters]
+      summary: Détail d'un chapitre
+      operationId: getChapter
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+      responses:
+        '200':
+          description: Détail du chapitre
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Chapters]
+      summary: Mise à jour d'un chapitre
+      operationId: updateChapter
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChapterRequest'
+      responses:
+        '200':
+          description: Chapitre mis à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags: [Chapters]
+      summary: Suppression d'un chapitre
+      operationId: deleteChapter
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+      responses:
+        '204':
+          description: Chapitre supprimé
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── RESOURCES ───────────────────────────────────────────────────────────────
+
+  /api/v1/courses/{courseId}/chapters/{chapterId}/resources:
+    get:
+      tags: [Resources]
+      summary: Liste des ressources d'un chapitre
+      operationId: listResources
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+      responses:
+        '200':
+          description: Liste des ressources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Resource'
+
+    post:
+      tags: [Resources]
+      summary: Upload d'une ressource (PDF, vidéo, image)
+      operationId: uploadResource
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, type]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Fichier à uploader (PDF, MP4, PNG, JPG — max 500MB)
+                type:
+                  $ref: '#/components/schemas/ResourceType'
+                title:
+                  type: string
+                  maxLength: 255
+                enableOcr:
+                  type: boolean
+                  default: false
+                  description: Activer l'OCR automatique pour les PDFs
+      responses:
+        '202':
+          description: Upload accepté, traitement en cours
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+          headers:
+            Location:
+              description: URL pour suivre le statut du traitement
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: Fichier trop volumineux (max 500MB)
+
+  /api/v1/courses/{courseId}/chapters/{chapterId}/resources/{resourceId}:
+    get:
+      tags: [Resources]
+      summary: Détail d'une ressource
+      operationId: getResource
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Détail de la ressource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Resources]
+      summary: Suppression d'une ressource
+      operationId: deleteResource
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Ressource supprimée
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── ENROLLMENTS ─────────────────────────────────────────────────────────────
+
+  /api/v1/courses/{courseId}/enroll:
+    post:
+      tags: [Enrollments]
+      summary: Inscription d'un étudiant à un cours
+      operationId: enrollStudent
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '201':
+          description: Inscription réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+        '409':
+          description: Étudiant déjà inscrit
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/courses/{courseId}/enrollments:
+    get:
+      tags: [Enrollments]
+      summary: Liste des étudiants inscrits (Enseignant/Admin)
+      operationId: listEnrollments
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Liste paginée des inscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedEnrollments'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── PROGRESS ────────────────────────────────────────────────────────────────
+
+  /api/v1/courses/{courseId}/progress:
+    get:
+      tags: [Progress]
+      summary: Progression de l'étudiant connecté dans le cours
+      operationId: getCourseProgress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Progression dans le cours
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/courses/{courseId}/chapters/{chapterId}/complete:
+    post:
+      tags: [Progress]
+      summary: Marquer un chapitre comme complété
+      operationId: completeChapter
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ChapterId'
+      responses:
+        '200':
+          description: Chapitre marqué complété
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ChapterId:
+      name: chapterId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ResourceId:
+      name: resourceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 0
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        default: 20
+
+  schemas:
+
+    CourseStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, ARCHIVED]
+
+    CourseLevel:
+      type: string
+      enum: [BEGINNER, INTERMEDIATE, ADVANCED]
+
+    ResourceType:
+      type: string
+      enum: [PDF, VIDEO, IMAGE, AUDIO, DOCUMENT]
+
+    CreateCourseRequest:
+      type: object
+      required: [title, description, level]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        level:
+          $ref: '#/components/schemas/CourseLevel'
+        durationHours:
+          type: integer
+          minimum: 1
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+        thumbnailUrl:
+          type: string
+          format: uri
+
+    UpdateCourseRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        level:
+          $ref: '#/components/schemas/CourseLevel'
+        durationHours:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        thumbnailUrl:
+          type: string
+          format: uri
+
+    Course:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        level:
+          $ref: '#/components/schemas/CourseLevel'
+        status:
+          $ref: '#/components/schemas/CourseStatus'
+        teacherId:
+          type: string
+          format: uuid
+        teacherName:
+          type: string
+        durationHours:
+          type: integer
+        enrollmentCount:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        thumbnailUrl:
+          type: string
+          format: uri
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CourseDetail:
+      allOf:
+        - $ref: '#/components/schemas/Course'
+        - type: object
+          properties:
+            chapters:
+              type: array
+              items:
+                $ref: '#/components/schemas/Chapter'
+
+    CreateChapterRequest:
+      type: object
+      required: [title, order]
+      properties:
+        title:
+          type: string
+          minLength: 2
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        order:
+          type: integer
+          minimum: 1
+
+    Chapter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        order:
+          type: integer
+        resourceCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    ChapterDetail:
+      allOf:
+        - $ref: '#/components/schemas/Chapter'
+        - type: object
+          properties:
+            resources:
+              type: array
+              items:
+                $ref: '#/components/schemas/Resource'
+
+    Resource:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        chapterId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        type:
+          $ref: '#/components/schemas/ResourceType'
+        status:
+          type: string
+          enum: [PROCESSING, READY, FAILED]
+        fileSize:
+          type: integer
+          description: Taille en octets
+        url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL S3 signée (disponible uniquement si status = READY)
+        createdAt:
+          type: string
+          format: date-time
+
+    ResourceDetail:
+      allOf:
+        - $ref: '#/components/schemas/Resource'
+        - type: object
+          properties:
+            ocrText:
+              type: string
+              nullable: true
+              description: Texte extrait par OCR (si activé et status = READY)
+            metadata:
+              type: object
+              additionalProperties: true
+
+    Enrollment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          format: uuid
+        enrolledAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    PagedEnrollments:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Enrollment'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+
+    CourseProgress:
+      type: object
+      properties:
+        courseId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          format: uuid
+        completedChapters:
+          type: array
+          items:
+            type: string
+            format: uuid
+        totalChapters:
+          type: integer
+        progressPercent:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        lastAccessedAt:
+          type: string
+          format: date-time
+
+    PagedCourses:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Requête invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Token JWT manquant ou invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Droits insuffisants
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

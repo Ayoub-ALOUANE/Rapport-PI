@@ -1,0 +1,16 @@
+\chapter{Architecture Globale et Microservices}
+
+\section{Justification de l'Architecture Microservices}
+Face à l'hétérogénéité des composants fonctionnels (gestion des cours, intelligence artificielle, flux vidéo en temps réel), une architecture monolithique s'avère rapidement limitante. Le choix s'est donc porté sur une architecture orientée microservices. Cette décentralisation permet de déployer, de dimensionner et de maintenir chaque module applicatif de manière totalement indépendante. 
+
+\begin{infobox}[Polyglottie Technologique]
+L'architecture microservices permet d'utiliser le langage le plus adapté à chaque tâche. La gestion transactionnelle robuste est assurée par Java (Spring Boot), tandis que le calcul matriciel, l'intelligence artificielle et l'analyse d'images sont confiés à Python (FastAPI).
+\end{infobox}
+
+\section{Topologie et Bus de Messages Kafka}
+La communication entre ces microservices est un enjeu d'ingénierie majeur. Pour les interactions synchrones, telles que la vérification des droits d'accès, des requêtes RESTful sont privilégiées. En revanche, pour les opérations asynchrones et lourdes en temps de calcul, telles que l'évaluation des réponses ouvertes par le modèle de langage ou le traitement asynchrone des rapports de fraude, la plateforme s'appuie sur le courtier de messages Apache Kafka. 
+
+Kafka garantit une livraison fiable et découplée des événements. Par exemple, lorsqu'un étudiant soumet un examen, un événement de demande de correction est publié. Le service Python le consomme à son rythme, interroge l'IA, puis publie le résultat de correction, permettant au service Java de mettre à jour le profil de l'étudiant sans jamais bloquer l'interface utilisateur.
+
+\section{Stratégie de Persistance Polyglotte}
+La sauvegarde des données suit le même principe de séparation des préoccupations. Les données fortement structurées et nécessitant des garanties transactionnelles strictes (utilisateurs, notes, configurations de cours) sont stockées dans des bases de données relationnelles PostgreSQL dédiées à chaque microservice. À l'inverse, le service d'intelligence artificielle nécessite une structure de données optimisée pour la recherche de similarité sémantique. À cette fin, le système déploie ChromaDB, une base de données vectorielle permettant d'indexer et d'interroger à très haute vitesse les représentations mathématiques des documents de cours.
